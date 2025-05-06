@@ -9,7 +9,7 @@ def html_to_json(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     result = {}
 
-    # Tarih bul
+    # Tarih bilgisini çek
     date_strong = soup.find('strong', string=re.compile(r'\w+ \d{2}(st|nd|rd|th) \w+ \d{4}', re.IGNORECASE))
     if not date_strong:
         print("UYARI: Tarih bilgisi bulunamadı!")
@@ -18,30 +18,35 @@ def html_to_json(html_content):
     date_text = date_strong.get_text(strip=True).split('–')[0].strip()
     result[date_text] = {}
 
-    # Tüm kategori başlıklarını bul (h2 -> strong olmayanlar hariç)
-    all_headers = soup.find_all('h2')
-    for header in all_headers:
-        category_name = header.get_text(strip=True)
-        if not category_name or "Schedule" in category_name:
-            continue  # Tarih başlığı veya boş başlıkları geç
+    # Tüm kategorileri tara (örneğin TV Shows, Sports Events vs.)
+    category_headers = soup.find_all('h2')
+    for header in category_headers:
+        category = header.get_text(strip=True)
+        if not category:
+            continue
 
-        result[date_text][category_name] = []
+        result[date_text][category] = []
 
-        # Bu başlıktan sonraki strong'lara bak
         for tag in header.find_all_next('strong'):
-            # Eğer yeni bir kategoriye geçildiyse çık
+            # Eğer bir sonraki <h2>'ye geldiysek kategoriyi bitir
             if tag.find_previous('h2') != header:
                 break
 
             full_text = tag.get_text(" ", strip=True)
-            match = re.match(r'(\d{2}:\d{2})\s+(.*?)(?=(https?|$))', full_text)
+            match = re.match(r'(\d{2}:\d{2})\s+(.*)', full_text)
             if not match:
                 continue
 
             event_time = match.group(1)
             event_info = match.group(2).strip()
 
+            # '|' sembolüyle gelen kanal isimlerini ayıkla
+            if '|' in event_info:
+                event_info = event_info.split('|')[0].strip()
+
+            # Linkli kanal bilgilerini çıkar
             channels = []
+            first_channel_found = False
             for a in tag.find_all('a', href=True):
                 href = a['href']
                 name = a.get_text(strip=True)
@@ -49,14 +54,21 @@ def html_to_json(html_content):
                 if id_match:
                     channel_id = id_match.group(1)
                     clean_name = re.sub(r'\s*\(CH-\d+\)$', '', name)
-                    event_info = event_info.replace(name, '').strip()
-                    event_info = re.sub(r'\(CH-\d+\)', '', event_info).strip()
+
+                    if not first_channel_found:
+                        # Event'teki ilk kanal ismini yakalayınca oradan itibaren kırp
+                        split_index = event_info.find(name)
+                        if split_index != -1:
+                            event_info = event_info[:split_index].strip()
+                        event_info = re.sub(r'\(CH-\d+\)', '', event_info).strip()
+                        first_channel_found = True
+
                     channels.append({
                         "channel_name": clean_name,
                         "channel_id": channel_id
                     })
 
-            result[date_text][category_name].append({
+            result[date_text][category].append({
                 "time": event_time,
                 "event": event_info,
                 "channels": channels
@@ -86,7 +98,7 @@ def modify_json_file(json_file_path):
     print(f"JSON dosyası güncellendi ve kaydedildi: {json_file_path}")
 
 def extract_schedule_container():
-    url = "https://daddylivehd1.click/"  # İlgili URL'yi buraya ekleyin
+    url = "https://daddylivehd1.click/"
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     json_output = os.path.join(script_dir, "schedule.json")
