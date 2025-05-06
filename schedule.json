@@ -1,7 +1,5 @@
 {
-    "Tuesday 06th May 2025": {
-        "DaddyLiveHD – Live Sports Streaming Free": [],
-        "Tuesday 06th May 2025 – Schedule Time UK GMT": [],
+    "Tuesday 06th May 2025 – Schedule Time UK GMT": {
         "TV Shows": [
             {
                 "time": "14:30",
@@ -1975,7 +1973,7 @@
         "Cycling": [
             {
                 "time": "14:30",
-                "event": "La Vuelta Femenina",
+                "event": "La Vuelta Femenina | Stage 3 Women | Barbastro – Huesca (132.4km)",
                 "channels": [
                     {
                         "channel_name": "Sky Sport 2 NZ",
@@ -2205,7 +2203,6 @@
                     }
                 ]
             }
-        ],
-        "Disclaimer – Our platformDaddyLiveHDmerely displays links to audiovisual content located on serv third parties and provided and/or transmitted by third parties. We DO NOT host nor transmit any audiovisual content itself and DO NOT control nor influence such content. We cannot accept any liability for the content transmitted by others. Any responsibility for this content lies with those who host or transmit it. We are not affiliated nor claim to be affiliated with any of the owners of streams and/or videos. All content is copyright of their respective owners.": []
+        ]
     }
 }
