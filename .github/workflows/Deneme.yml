@@ -1,37 +1,27 @@
-name: zzRun Python Scrixxxxpts from Private Repo (D- JSON)
+name: Run deneme.py
 
 on:
-  workflow_dispatch:  # Manuel tetikleme de mümkün
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Manuel çalıştırmak için GitHub üzerinden tetikleme
 
 jobs:
-  extract-schedule-data:
+  run-python-script:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Kod deposunu klonla
+        uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: Python kurulumu
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.x'
 
-      - name: Install dependencies
+      - name: Gerekli modülleri yükle
         run: |
           python -m pip install --upgrade pip
-          pip install beautifulsoup4
-          pip install playwright
-          pip install bs4
-          pip install lxml
-          playwright install
+          pip install requests beautifulsoup4
 
-      - name: Run extraction script
+      - name: deneme.py dosyasını çalıştır
         run: python deneme.py
-
-      - name: Commit and push if changes
-        run: |
-          git config --global user.name 'GitHub Actions Bot'
-          git config --global user.email 'actions@github.com'
-          git add -A
-          git status
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update schedule data [skip ci]" && git push origin main)
