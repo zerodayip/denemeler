@@ -1,25 +1,28 @@
-import requests
-from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+import time
 
-dlhd_id = "661"
-url = f"https://daddylivehd1.online/embed/stream-{dlhd_id}.php"
+# Headless modda Chrome tarayıcısını çalıştırmak için
+chrome_options = Options()
+chrome_options.add_argument("--headless")  # Tarayıcı arayüzünü göstermemek için
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
-(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Referer": "https://www.google.com/",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-}
+# Chrome WebDriver'ı başlat
+driver = webdriver.Chrome(options=chrome_options)
 
-try:
-    response = requests.get(url, headers=headers, timeout=15)
+# URL'yi aç
+url = "https://daddylivehd1.online/embed/stream-661.php"
+driver.get(url)
 
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, 'html.parser')
-        print(soup.prettify())  # Tüm HTML'yi düzgün formatta yazdırır
-    else:
-        print(f"Hata: Sayfa alınamadı. HTTP {response.status_code}")
+# Sayfanın tam olarak yüklenmesi için biraz bekleyelim
+time.sleep(5)
 
-except Exception as e:
-    print(f"İstek sırasında hata oluştu: {e}")
+# Sayfanın HTML içeriğini al
+html_content = driver.page_source
+
+# HTML'yi terminalde yazdır
+print(html_content)
+
+# Tarayıcıyı kapat
+driver.quit()
