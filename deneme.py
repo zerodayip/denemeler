@@ -1,20 +1,15 @@
 from playwright.sync_api import sync_playwright
 
-# Playwright'ı kullanarak sayfa içeriğini çekme
 with sync_playwright() as p:
-    # Headless modda Chromium tarayıcısını başlatıyoruz
-    browser = p.chromium.launch(headless=True)
+    browser = p.chromium.launch(headless=True)  # Tarayıcıyı başlatıyoruz
     page = browser.new_page()
     
-    # Sayfayı açıyoruz
-    url = "https://daddylivehd1.online/embed/stream-661.php"
-    page.goto(url)
+    # URL'yi açıyoruz
+    page.goto('https://daddylivehd1.online/embed/stream-661.php')
     
     # Sayfanın HTML içeriğini alıyoruz
     html_content = page.content()
     
-    # HTML'yi yazdırıyoruz
-    print(html_content)
+    print(html_content)  # Sayfanın HTML içeriğini yazdırıyoruz
     
-    # Tarayıcıyı kapatıyoruz
-    browser.close()
+    browser.close()  # Tarayıcıyı kapatıyoruz
