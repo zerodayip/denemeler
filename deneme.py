@@ -1,28 +1,20 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-import time
+from playwright.sync_api import sync_playwright
 
-# Headless modda Chrome tarayıcısını çalıştırmak için
-chrome_options = Options()
-chrome_options.add_argument("--headless")  # Tarayıcı arayüzünü göstermemek için
-chrome_options.add_argument("--no-sandbox")
-chrome_options.add_argument("--disable-dev-shm-usage")
-
-# Chrome WebDriver'ı başlat
-driver = webdriver.Chrome(options=chrome_options)
-
-# URL'yi aç
-url = "https://daddylivehd1.online/embed/stream-661.php"
-driver.get(url)
-
-# Sayfanın tam olarak yüklenmesi için biraz bekleyelim
-time.sleep(5)
-
-# Sayfanın HTML içeriğini al
-html_content = driver.page_source
-
-# HTML'yi terminalde yazdır
-print(html_content)
-
-# Tarayıcıyı kapat
-driver.quit()
+# Playwright'ı kullanarak sayfa içeriğini çekme
+with sync_playwright() as p:
+    # Headless modda Chromium tarayıcısını başlatıyoruz
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+    
+    # Sayfayı açıyoruz
+    url = "https://daddylivehd1.online/embed/stream-661.php"
+    page.goto(url)
+    
+    # Sayfanın HTML içeriğini alıyoruz
+    html_content = page.content()
+    
+    # HTML'yi yazdırıyoruz
+    print(html_content)
+    
+    # Tarayıcıyı kapatıyoruz
+    browser.close()
