@@ -22,15 +22,24 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y wget curl unzip
-          # Installing Chrome and ChromeDriver
-          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo dpkg -i google-chrome-stable_current_amd64.deb
-          sudo apt --fix-broken install -y
-          wget https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip
+          # Install latest Chrome and ChromeDriver
+          # Install Google Chrome
+          sudo apt install -y google-chrome-stable
+          
+          # Get the current version of Google Chrome
+          CHROME_VERSION=$(google-chrome-stable --version | awk '{print $3}')
+          echo "Chrome version is $CHROME_VERSION"
+          
+          # Download the appropriate ChromeDriver
+          DRIVER_VERSION=$(curl -sS chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION)
+          echo "ChromeDriver version is $DRIVER_VERSION"
+          
+          # Download ChromeDriver
+          wget https://chromedriver.storage.googleapis.com/$DRIVER_VERSION/chromedriver_linux64.zip
           unzip chromedriver_linux64.zip
           sudo mv chromedriver /usr/local/bin
           sudo chmod +x /usr/local/bin/chromedriver
-          
+
       - name: Install Python dependencies
         run: |
           pip install selenium
