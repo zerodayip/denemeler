@@ -22,7 +22,7 @@ jobs:
           pip install requests
 
       - name: ▶️ Python Scriptini Çalıştır
-        run: python main.py
+        run: python deneme.py
 
       - name: 📁 M3U İçeriğini Listele
         run: ls -la m3u
