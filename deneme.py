@@ -27,7 +27,6 @@ M3U_LIST: Dict[str, Optional[Callable[[dict], bool]]] = {
 
 # Klasörleri oluştur
 os.makedirs("m3u", exist_ok=True)
-os.makedirs("xml", exist_ok=True)
 
 class Ppv:
     def __init__(self, base_url: str):
@@ -41,12 +40,17 @@ class Ppv:
         except requests.RequestException:
             return False
 
-    def generate_m3u(self, filter_func: Optional[Callable[[dict], bool]] = None) -> dict:
-        """M3U ve XML çıktısı oluştur."""
+    def generate_m3u(self, filter_func: Optional[Callable[[dict], bool]] = None) -> str:
+        """M3U çıktısı oluştur."""
         try:
             response = requests.get(f"{self.base_url}/api/streams", timeout=10)
             response.raise_for_status()
-            streams = response.json()
+            data = response.json()
+
+            if not isinstance(data, list):
+                raise ValueError(f"API beklenen listeyi döndürmedi: {data}")
+
+            streams = data
 
             if filter_func:
                 streams = list(filter(filter_func, streams))
@@ -59,17 +63,7 @@ class Ppv:
                     f'{stream["url"]}\n'
                 )
 
-            # XML çıktısı
-            xml = "<tv>\n"
-            for stream in streams:
-                xml += (
-                    f'  <channel id="{stream["id"]}">\n'
-                    f'    <display-name>{stream["name"]}</display-name>\n'
-                    f'  </channel>\n'
-                )
-            xml += "</tv>"
-
-            return {"m3u": m3u, "xml": xml}
+            return m3u
 
         except Exception as e:
             print(f"[HATA] Yayınlar alınamadı: {e}")
@@ -87,11 +81,9 @@ def main():
         for name, criteria in M3U_LIST.items():
             try:
                 print(f'[•] M3U "{name}" oluşturuluyor...')
-                data = ppv.generate_m3u(criteria)
+                m3u_data = ppv.generate_m3u(criteria)
                 with open(f"m3u/{name}.m3u", "w", encoding="utf-8") as m3u_file:
-                    m3u_file.write(data["m3u"])
-                with open(f"xml/{name}.xml", "w", encoding="utf-8") as xml_file:
-                    xml_file.write(data["xml"])
+                    m3u_file.write(m3u_data)
                 print(f"[✓] {name} başarıyla kaydedildi.")
             except Exception as e:
                 print(f"[HATA] M3U '{name}' oluşturulamadı: {e}")
