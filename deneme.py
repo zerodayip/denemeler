@@ -1,9 +1,13 @@
-import requests
-import os
-from typing import Callable, Optional
-import time
+# ppv_updater.py
 
-# Mirror URL'leri
+import os
+import time
+import json
+import asyncio
+import aiohttp
+from typing import Callable, Optional
+from playwright.async_api import async_playwright
+
 MIRRORS = [
     "https://ppv.land",
     "https://freeppv.fun",
@@ -11,98 +15,86 @@ MIRRORS = [
     "https://ppvs.su"
 ]
 
-# M3U Listesi Filtreleme
-m3uList = {
+FILTERS = {
     "full": None,
-    "24-7": lambda stream: (time.time() - stream['starts_at']) > 86400 * 30,  # 30 gün önceki yayınlar
-    "event": lambda stream: (time.time() - stream['starts_at']) < 86400 * 30  # 30 gün içinde başlayan yayınlar
+    "24-7": lambda s: s.get("starts_at", 0) < time.time() - 86400 * 30,
+    "event": lambda s: s.get("starts_at", 0) >= time.time() - 86400 * 30,
 }
 
-class Ppv:
-    def __init__(self, base_url: str):
-        self.base_url = base_url
-    
-    def is_working(self) -> bool:
-        """Mirror'ün çalışıp çalışmadığını kontrol et."""
-        try:
-            response = requests.get(f"{self.base_url}/api/streams", timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            if 'streams' in data:
-                return True
-            return False
-        except Exception as e:
-            print(f"[HATA] Mirror çalışmıyor: {self.base_url}, {e}")
-            return False
-    
-    def generate_m3u(self, filter_func: Optional[Callable[[dict], bool]] = None) -> str:
-        """M3U çıktısı oluştur."""
-        try:
-            response = requests.get(f"{self.base_url}/api/streams", timeout=10)
-            response.raise_for_status()
-            data = response.json()
 
-            if not isinstance(data, dict) or 'streams' not in data:
-                raise ValueError(f"API beklenen formatta veri döndürmedi: {data}")
-
-            # İç içe geçmiş 'streams' listesini al
-            all_streams = []
-            for category in data['streams']:
-                if 'streams' in category:
-                    all_streams.extend(category['streams'])
-
-            # Eğer filtre fonksiyonu varsa, filtre uygula
-            if filter_func:
-                all_streams = list(filter(filter_func, all_streams))
-
-            # M3U çıktısı oluştur
-            m3u = "#EXTM3U\n"
-            for stream in all_streams:
-                m3u += (
-                    f'#EXTINF:-1 tvg-id="{stream["id"]}" tvg-name="{stream["name"]}",{stream["name"]}\n'
-                    f'{stream["iframe"]}\n'
-                )
-
-            return m3u
-
-        except Exception as e:
-            print(f"[HATA] Yayınlar alınamadı: {e}")
-            raise
-
-
-def create_directories():
-    """Gerekli dizinleri oluştur."""
+def ensure_dirs():
     os.makedirs("m3u", exist_ok=True)
 
 
-def save_to_file(name: str, m3u_data: str):
-    """M3U dosyasını kaydet."""
-    with open(f"m3u/{name}.m3u", "w") as m3u_file:
-        m3u_file.write(m3u_data)
+async def fetch_streams(session, mirror):
+    try:
+        async with session.get(f"{mirror}/api/streams") as resp:
+            data = await resp.json()
+            return data.get("streams", [])
+    except Exception as e:
+        print(f"[✗] {mirror} mirror erişilemedi: {e}")
+        return None
 
 
-def main():
-    create_directories()
-    
-    for mirror_url in MIRRORS:
-        ppv = Ppv(mirror_url)
-        if ppv.is_working():
-            print(f"Mirror {mirror_url} çalışıyor.")
-        else:
-            print(f"Mirror {mirror_url} çalışmıyor, sıradakine geçiliyor...")
-            continue
-        
-        # M3U'yu oluştur
-        for name, filter_func in m3uList.items():
-            print(f'M3U "{name}" oluşturuluyor...')
-            try:
-                m3u_data = ppv.generate_m3u(filter_func)
-                save_to_file(name, m3u_data)
-                print(f'M3U "{name}" başarıyla oluşturuldu ve kaydedildi.')
-            except Exception as e:
-                print(f"[HATA] M3U '{name}' oluşturulamadı: {e}")
-        
-        break  # Sadece bir mirror'u kontrol et ve işlemi bitir.
+async def extract_m3u8_link(iframe_url, playwright):
+    try:
+        browser = await playwright.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.goto(iframe_url, timeout=20000)
+        content = await page.content()
+        m3u8_links = [line for line in content.split('"') if ".m3u8" in line]
+        await browser.close()
+        return m3u8_links[0] if m3u8_links else None
+    except Exception as e:
+        print(f"[HATA] .m3u8 alınamadı ({iframe_url}): {e}")
+        return None
+
+
+async def build_m3u_category(name: str, streams: list, filter_fn: Optional[Callable], playwright):
+    lines = ["#EXTM3U"]
+
+    count = 0
+    for stream in streams:
+        substreams = stream.get("streams", [])
+        for s in substreams:
+            if filter_fn and not filter_fn(s):
+                continue
+
+            title = s.get("name", "No Name")
+            logo = s.get("poster", "")
+            group = stream.get("category", "Unknown")
+            iframe_url = s.get("iframe")
+
+            m3u8_link = await extract_m3u8_link(iframe_url, playwright)
+            if not m3u8_link:
+                continue
+
+            lines.append(f'#EXTINF:-1 tvg-logo="{logo}" group-title="{group}",{title}')
+            lines.append(m3u8_link)
+            count += 1
+
+    if count:
+        with open(f"m3u/{name}.m3u", "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+        print(f"[✓] {name}.m3u ({count} yayın) kaydedildi.")
+    else:
+        print(f"[!] {name} kategorisi için uygun yayın bulunamadı.")
+
+
+async def main():
+    ensure_dirs()
+    async with aiohttp.ClientSession() as session:
+        async with async_playwright() as playwright:
+            for mirror in MIRRORS:
+                streams = await fetch_streams(session, mirror)
+                if streams:
+                    print(f"[✓] Aktif mirror bulundu: {mirror}")
+                    for name, filt in FILTERS.items():
+                        print(f"[•] M3U oluşturuluyor: {name}")
+                        await build_m3u_category(name, streams, filt, playwright)
+                    break
+            else:
+                print("[✗] Hiçbir mirror çalışmıyor.")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
