@@ -27,15 +27,10 @@ jobs:
       - name: 📁 M3U İçeriğini Listele
         run: ls -la m3u
 
-      - name: 📁 XML İçeriğini Listele
-        run: ls -la xml
-
       - name: 📤 Değişiklikleri GitHub’a Push Et
         run: |
           git config --global user.name "PPV Updater"
           git config --global user.email "ppv-m3u@eyezah.com"
-          git add m3u xml
+          git add m3u
           git commit -m "✅ Otomatik PPV güncellemesi"
           git push
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
