@@ -1,12 +1,8 @@
-# ppv_updater.py
-
-import os
-import time
-import json
-import asyncio
-import aiohttp
-from typing import Callable, Optional
-from playwright.async_api import async_playwright
+import os, time, json
+import requests
+from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 
 MIRRORS = [
     "https://ppv.land",
@@ -21,80 +17,71 @@ FILTERS = {
     "event": lambda s: s.get("starts_at", 0) >= time.time() - 86400 * 30,
 }
 
+def get_working_mirror():
+    for url in MIRRORS:
+        try:
+            r = requests.get(f"{url}/api/streams", timeout=5)
+            if r.ok and "streams" in r.text:
+                return url
+        except:
+            pass
+    return None
 
-def ensure_dirs():
-    os.makedirs("m3u", exist_ok=True)
+def extract_m3u8_from_iframe(iframe_url):
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    driver = webdriver.Chrome(options=options)
 
-
-async def fetch_streams(session, mirror):
     try:
-        async with session.get(f"{mirror}/api/streams") as resp:
-            data = await resp.json()
-            return data.get("streams", [])
+        driver.get(iframe_url)
+        time.sleep(3)
+        html = driver.page_source
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup.find_all(["script", "source"]):
+            if tag and ".m3u8" in str(tag):
+                return str(tag).split("http")[1].split(".m3u8")[0]
     except Exception as e:
-        print(f"[✗] {mirror} mirror erişilemedi: {e}")
-        return None
+        print("Iframe parsing error:", e)
+    finally:
+        driver.quit()
 
+    return None
 
-async def extract_m3u8_link(iframe_url, playwright):
-    try:
-        browser = await playwright.chromium.launch(headless=True)
-        page = await browser.new_page()
-        await page.goto(iframe_url, timeout=20000)
-        content = await page.content()
-        m3u8_links = [line for line in content.split('"') if ".m3u8" in line]
-        await browser.close()
-        return m3u8_links[0] if m3u8_links else None
-    except Exception as e:
-        print(f"[HATA] .m3u8 alınamadı ({iframe_url}): {e}")
-        return None
-
-
-async def build_m3u_category(name: str, streams: list, filter_fn: Optional[Callable], playwright):
+def generate_m3u(streams):
     lines = ["#EXTM3U"]
-
-    count = 0
     for stream in streams:
-        substreams = stream.get("streams", [])
-        for s in substreams:
-            if filter_fn and not filter_fn(s):
-                continue
+        title = stream.get("name", "No Title")
+        m3u8 = extract_m3u8_from_iframe(stream["iframe"])
+        if m3u8:
+            lines.append(f'#EXTINF:-1 tvg-name="{title}",{title}')
+            lines.append(f"http{m3u8}.m3u8")
+    return "\n".join(lines)
 
-            title = s.get("name", "No Name")
-            logo = s.get("poster", "")
-            group = stream.get("category", "Unknown")
-            iframe_url = s.get("iframe")
+def main():
+    os.makedirs("m3u", exist_ok=True)
+    base = get_working_mirror()
+    if not base:
+        print("No mirror working.")
+        return
 
-            m3u8_link = await extract_m3u8_link(iframe_url, playwright)
-            if not m3u8_link:
-                continue
+    r = requests.get(f"{base}/api/streams")
+    data = r.json()
 
-            lines.append(f'#EXTINF:-1 tvg-logo="{logo}" group-title="{group}",{title}')
-            lines.append(m3u8_link)
-            count += 1
+    all_streams = []
+    for group in data.get("streams", []):
+        all_streams.extend(group.get("streams", []))
 
-    if count:
+    for name, func in FILTERS.items():
+        filtered = all_streams if func is None else list(filter(func, all_streams))
+        if not filtered:
+            print(f"[!] {name} listesi boş.")
+            continue
+        print(f"[+] {name} listesi hazırlanıyor: {len(filtered)} yayın")
+        m3u_content = generate_m3u(filtered)
         with open(f"m3u/{name}.m3u", "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
-        print(f"[✓] {name}.m3u ({count} yayın) kaydedildi.")
-    else:
-        print(f"[!] {name} kategorisi için uygun yayın bulunamadı.")
-
-
-async def main():
-    ensure_dirs()
-    async with aiohttp.ClientSession() as session:
-        async with async_playwright() as playwright:
-            for mirror in MIRRORS:
-                streams = await fetch_streams(session, mirror)
-                if streams:
-                    print(f"[✓] Aktif mirror bulundu: {mirror}")
-                    for name, filt in FILTERS.items():
-                        print(f"[•] M3U oluşturuluyor: {name}")
-                        await build_m3u_category(name, streams, filt, playwright)
-                    break
-            else:
-                print("[✗] Hiçbir mirror çalışmıyor.")
+            f.write(m3u_content)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
