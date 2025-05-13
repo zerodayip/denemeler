@@ -1,8 +1,9 @@
-import os
-import time
 import requests
-from typing import Callable, Dict, Optional
+import os
+from typing import Callable, Optional
+import time
 
+# Mirror URL'leri
 MIRRORS = [
     "https://ppv.land",
     "https://freeppv.fun",
@@ -10,36 +11,30 @@ MIRRORS = [
     "https://ppvs.su"
 ]
 
-# Yayın filtreleri
-def filter_24_7(stream):
-    month_ago = time.time() - 86400 * 30
-    return stream.get("starts_at", 0) < month_ago
-
-def filter_event(stream):
-    month_ago = time.time() - 86400 * 30
-    return stream.get("starts_at", 0) > month_ago
-
-M3U_LIST: Dict[str, Optional[Callable[[dict], bool]]] = {
+# M3U Listesi Filtreleme
+m3uList = {
     "full": None,
-    "24-7": filter_24_7,
-    "event": filter_event
+    "24-7": lambda stream: (time.time() - stream['starts_at']) > 86400 * 30,  # 30 gün önceki yayınlar
+    "event": lambda stream: (time.time() - stream['starts_at']) < 86400 * 30  # 30 gün içinde başlayan yayınlar
 }
-
-# Klasörleri oluştur
-os.makedirs("m3u", exist_ok=True)
 
 class Ppv:
     def __init__(self, base_url: str):
-        self.base_url = base_url.rstrip("/")
-
+        self.base_url = base_url
+    
     def is_working(self) -> bool:
-        """Mirror çalışıyor mu test et."""
+        """Mirror'ün çalışıp çalışmadığını kontrol et."""
         try:
-            response = requests.get(f"{self.base_url}/api/health", timeout=5)
-            return response.status_code == 200
-        except requests.RequestException:
+            response = requests.get(f"{self.base_url}/api/streams", timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            if 'streams' in data:
+                return True
             return False
-
+        except Exception as e:
+            print(f"[HATA] Mirror çalışmıyor: {self.base_url}, {e}")
+            return False
+    
     def generate_m3u(self, filter_func: Optional[Callable[[dict], bool]] = None) -> str:
         """M3U çıktısı oluştur."""
         try:
@@ -47,20 +42,25 @@ class Ppv:
             response.raise_for_status()
             data = response.json()
 
-            if not isinstance(data, list):
-                raise ValueError(f"API beklenen listeyi döndürmedi: {data}")
+            if not isinstance(data, dict) or 'streams' not in data:
+                raise ValueError(f"API beklenen formatta veri döndürmedi: {data}")
 
-            streams = data
+            # İç içe geçmiş 'streams' listesini al
+            all_streams = []
+            for category in data['streams']:
+                if 'streams' in category:
+                    all_streams.extend(category['streams'])
 
+            # Eğer filtre fonksiyonu varsa, filtre uygula
             if filter_func:
-                streams = list(filter(filter_func, streams))
+                all_streams = list(filter(filter_func, all_streams))
 
-            # M3U çıktısı
+            # M3U çıktısı oluştur
             m3u = "#EXTM3U\n"
-            for stream in streams:
+            for stream in all_streams:
                 m3u += (
                     f'#EXTINF:-1 tvg-id="{stream["id"]}" tvg-name="{stream["name"]}",{stream["name"]}\n'
-                    f'{stream["url"]}\n'
+                    f'{stream["iframe"]}\n'
                 )
 
             return m3u
@@ -69,26 +69,40 @@ class Ppv:
             print(f"[HATA] Yayınlar alınamadı: {e}")
             raise
 
-def main():
-    for mirror in MIRRORS:
-        ppv = Ppv(mirror)
-        if ppv.is_working():
-            print(f"[✓] Mirror çalışıyor: {ppv.base_url}")
-        else:
-            print(f"[✗] Mirror çalışmıyor: {ppv.base_url}, sıradakine geçiliyor...")
-            continue
 
-        for name, criteria in M3U_LIST.items():
+def create_directories():
+    """Gerekli dizinleri oluştur."""
+    os.makedirs("m3u", exist_ok=True)
+
+
+def save_to_file(name: str, m3u_data: str):
+    """M3U dosyasını kaydet."""
+    with open(f"m3u/{name}.m3u", "w") as m3u_file:
+        m3u_file.write(m3u_data)
+
+
+def main():
+    create_directories()
+    
+    for mirror_url in MIRRORS:
+        ppv = Ppv(mirror_url)
+        if ppv.is_working():
+            print(f"Mirror {mirror_url} çalışıyor.")
+        else:
+            print(f"Mirror {mirror_url} çalışmıyor, sıradakine geçiliyor...")
+            continue
+        
+        # M3U'yu oluştur
+        for name, filter_func in m3uList.items():
+            print(f'M3U "{name}" oluşturuluyor...')
             try:
-                print(f'[•] M3U "{name}" oluşturuluyor...')
-                m3u_data = ppv.generate_m3u(criteria)
-                with open(f"m3u/{name}.m3u", "w", encoding="utf-8") as m3u_file:
-                    m3u_file.write(m3u_data)
-                print(f"[✓] {name} başarıyla kaydedildi.")
+                m3u_data = ppv.generate_m3u(filter_func)
+                save_to_file(name, m3u_data)
+                print(f'M3U "{name}" başarıyla oluşturuldu ve kaydedildi.')
             except Exception as e:
                 print(f"[HATA] M3U '{name}' oluşturulamadı: {e}")
-
-        break  # İlk çalışan mirror ile işlem tamamlandı
+        
+        break  # Sadece bir mirror'u kontrol et ve işlemi bitir.
 
 if __name__ == "__main__":
     main()
