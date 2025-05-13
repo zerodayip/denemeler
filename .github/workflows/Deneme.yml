@@ -1,31 +1,43 @@
-name: Run Playwright Script
+name: Update PPV Playlists
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Manuel çalıştırma imkanı
 
 jobs:
-  run-playwright-script:
+  update-ppv:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: 🔄 Depoyu Klonla
+        uses: actions/checkout@v4
         with:
-          python-version: '3.x'
+          token: ${{ secrets.GH_TOKEN }}
 
-      - name: Install Playwright dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y python3-pip
-          pip install playwright
+      - name: 🐍 Python Kurulumu
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-      - name: Install Playwright Browsers
+      - name: 📦 Gerekli Python Paketlerini Yükle
         run: |
-          python -m playwright install
+          python -m pip install --upgrade pip
+          pip install requests
 
-      - name: Run Playwright script
+      - name: ▶️ Python Scriptini Çalıştır
+        run: python main.py
+
+      - name: 📁 M3U İçeriğini Listele
+        run: ls -la m3u
+
+      - name: 📁 XML İçeriğini Listele
+        run: ls -la xml
+
+      - name: 📤 Değişiklikleri GitHub’a Push Et
         run: |
-          python deneme.py
+          git config --global user.name "PPV Updater"
+          git config --global user.email "ppv-m3u@eyezah.com"
+          git add m3u xml
+          git commit -m "✅ Otomatik PPV güncellemesi"
+          git push
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
