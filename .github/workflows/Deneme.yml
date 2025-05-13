@@ -1,36 +1,37 @@
-name: Update PPV Playlists
+name: Update M3U Playlists
 
 on:
-  workflow_dispatch: # Manuel çalıştırma imkanı
+  workflow_dispatch:
 
 jobs:
-  update-ppv:
+  update:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 🔄 Depoyu Klonla
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🐍 Python Kurulumu
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: 📦 Gerekli Python Paketlerini Yükle
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests
+          pip install -r requirements.txt
+          sudo apt-get update
+          sudo apt-get install -y chromium-chromedriver
+          sudo cp /usr/lib/chromium-browser/chromedriver /usr/bin
 
-      - name: ▶️ Python Scriptini Çalıştır
+      - name: Run script
         run: python deneme.py
 
-      - name: 📁 M3U İçeriğini Listele
-        run: ls -la m3u
-
-      - name: 📤 Değişiklikleri GitHub’a Push Et
+      - name: Commit and push
         run: |
-          git config --global user.name "PPV Updater"
-          git config --global user.email "ppv-m3u@eyezah.com"
-          git add m3u
-          git commit -m "✅ Otomatik PPV güncellemesi"
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add m3u/
+          git commit -m "Auto update M3U playlists" || echo "No changes to commit"
           git push
+        
