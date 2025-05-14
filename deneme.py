@@ -1,87 +1,151 @@
-import os, time, json
+import json
 import requests
-from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+import time
+import re
 
-MIRRORS = [
-    "https://ppv.land",
-    "https://freeppv.fun",
-    "https://ppv.wtf",
-    "https://ppvs.su"
-]
+# --------- BÖLÜM 1: Canlı TV Verileri ---------
+url_kategoriler = "https://service-media-catalog.clusters.pluto.tv/v1/main-categories?includeImages=svg"
+url_kanallar = "https://service-channels.clusters.pluto.tv/v2/guide/channels?channelIds=&offset=0&limit=1000&sort=number%3Aasc"
 
-FILTERS = {
-    "full": None,
-    "24-7": lambda s: s.get("starts_at", 0) < time.time() - 86400 * 30,
-    "event": lambda s: s.get("starts_at", 0) >= time.time() - 86400 * 30,
+headers1 = {}
+headers2 = {}
+
+toplam_sure_baslangic = time.time()
+sure_baslangic = time.time()
+
+# Kategorileri çek
+cevap1 = requests.get(url_kategoriler, headers=headers1)
+kategoriler = {}
+if cevap1.status_code == 200:
+    veriler1 = cevap1.json()
+    kategoriler = {item.get("id"): item.get("name") for item in veriler1.get("data", [])}
+else:
+    print(f"HATA: Kategori isteği başarısız oldu ({cevap1.status_code})")
+
+# Kanalları çek
+cevap2 = requests.get(url_kanallar, headers=headers2)
+kanallar = []
+ozet_bilgi = {}
+if cevap2.status_code == 200:
+    veriler2 = cevap2.json()
+    kanallar = [
+        {
+            "isim": item.get("name"),
+            "kategoriIDler": item.get("categoryIDs"),
+            "ozet": item.get("summary"),
+            "hash": item.get("hash")
+        }
+        for item in veriler2.get("data", [])
+    ]
+    ozet_bilgi = {
+        "Toplam Kanal Sayısı": len(veriler2.get("data", [])),
+        "Toplam Kategori Sayısı": len(kategoriler)
+    }
+else:
+    print(f"HATA: Kanal isteği başarısız oldu ({cevap2.status_code})")
+
+# Yapılandırılmış canlı TV verisi
+canli_tv = {"Özet": ozet_bilgi, "Kategoriler": {}}
+
+for kanal in kanallar:
+    for kategori_id in kanal["kategoriIDler"]:
+        kategori_adi = kategoriler.get(kategori_id, "Bilinmeyen Kategori")
+        if kategori_adi not in canli_tv["Kategoriler"]:
+            canli_tv["Kategoriler"][kategori_adi] = {}
+        canli_tv["Kategoriler"][kategori_adi][kanal["isim"]] = {
+            "Özet": kanal["ozet"],
+            "Hash": kanal["hash"]
+        }
+
+sure_bitis = time.time()
+canli_tv["Özet"]["Çalışma Süresi (sn)"] = round(sure_bitis - sure_baslangic, 2)
+
+# --------- BÖLÜM 2: İsteğe Bağlı (OnDemand) İçerik ---------
+def slugdan_yil_cek(slug):
+    eslesme = re.search(r'-\d{4}-', slug)
+    if eslesme:
+        return eslesme.group(0)[1:5]
+    return None
+
+def icerik_getir(alt_kategori_id):
+    url_ondemand = f"https://service-vod.clusters.pluto.tv/v4/vod/categories/{alt_kategori_id}/items?offset=30&page=1"
+    cevap = requests.get(url_ondemand)
+    icerikler = []
+
+    if cevap.status_code == 200:
+        for item in cevap.json().get("items", []):
+            tur = item.get("type")
+            baslik = item.get("name")
+            aciklama = item.get("description")
+            icerik_id = item.get("_id")
+            siniflama = item.get("rating")
+            turu = item.get("genre")
+            slug = item.get("slug", "")
+
+            yil = slugdan_yil_cek(slug) if tur == "movie" else None
+            if tur == "movie":
+                link = f"https://pluto.tv/latam/on-demand/movies/{icerik_id}"
+                detay = f"https://pluto.tv/latam/on-demand/movies/{icerik_id}/details"
+            elif tur == "series":
+                link = f"https://pluto.tv/latam/search/details/series/{icerik_id}/season/1"
+                detay = None
+            else:
+                link = detay = None
+
+            icerikler.append({
+                "Başlık": baslik,
+                "Yıl": yil,
+                "Açıklama": aciklama,
+                "Alt Kategori ID": alt_kategori_id,
+                "Bağlantı": link,
+                "Detay Bağlantısı": detay,
+                "Tür": tur,
+                "Sınıflandırma": siniflama,
+                "Türü": turu
+            })
+    else:
+        print(f"HATA: Alt kategori {alt_kategori_id} içeriği alınamadı ({cevap.status_code})")
+    return icerikler
+
+# Kategori verileri
+cevap_ana = requests.get(url_kategoriler)
+ana_kategoriler = cevap_ana.json().get("data", []) if cevap_ana.status_code == 200 else []
+
+url_alt_kategoriler = "https://service-vod.clusters.pluto.tv/v4/vod/categories?includeItems=false&includeCategoryFields=iconSvg&offset=1000&page=1&sort=number%3Aasc"
+cevap_alt = requests.get(url_alt_kategoriler)
+alt_kategoriler = cevap_alt.json().get("categories", []) if cevap_alt.status_code == 200 else []
+
+ondemand_baslangic = time.time()
+istege_bagli = {}
+
+for ana in ana_kategoriler:
+    ana_id = ana.get("id")
+    ana_ad = ana.get("name")
+    istege_bagli[ana_ad] = {}
+
+    for alt in alt_kategoriler:
+        alt_ids = [a.get("categoryID") for a in alt.get("mainCategories", [])]
+        if ana_id in alt_ids:
+            alt_ad = alt.get("name")
+            alt_id = alt.get("_id")
+            icerikler = icerik_getir(alt_id)
+            istege_bagli[ana_ad][alt_ad] = icerikler
+
+ondemand_bitis = time.time()
+calisma_suresi_toplam = round(time.time() - toplam_sure_baslangic, 2)
+
+# --------- Final JSON ---------
+json_sonuc = {
+    "Genel Özet": {
+        "Toplam Çalışma Süresi (sn)": calisma_suresi_toplam
+    },
+    "Canlı TV": canli_tv,
+    "İsteğe Bağlı İçerik": istege_bagli
 }
 
-def get_working_mirror():
-    for url in MIRRORS:
-        try:
-            r = requests.get(f"{url}/api/streams", timeout=5)
-            if r.ok and "streams" in r.text:
-                return url
-        except:
-            pass
-    return None
+# Dosyaya yaz
+with open("plutotv_scraping_TR.json", "w", encoding="utf-8") as f:
+    json.dump(json_sonuc, f, indent=4, ensure_ascii=False)
 
-def extract_m3u8_from_iframe(iframe_url):
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    driver = webdriver.Chrome(options=options)
-
-    try:
-        driver.get(iframe_url)
-        time.sleep(3)
-        html = driver.page_source
-        soup = BeautifulSoup(html, "html.parser")
-        for tag in soup.find_all(["script", "source"]):
-            if tag and ".m3u8" in str(tag):
-                return str(tag).split("http")[1].split(".m3u8")[0]
-    except Exception as e:
-        print("Iframe parsing error:", e)
-    finally:
-        driver.quit()
-
-    return None
-
-def generate_m3u(streams):
-    lines = ["#EXTM3U"]
-    for stream in streams:
-        title = stream.get("name", "No Title")
-        m3u8 = extract_m3u8_from_iframe(stream["iframe"])
-        if m3u8:
-            lines.append(f'#EXTINF:-1 tvg-name="{title}",{title}')
-            lines.append(f"http{m3u8}.m3u8")
-    return "\n".join(lines)
-
-def main():
-    os.makedirs("m3u", exist_ok=True)
-    base = get_working_mirror()
-    if not base:
-        print("No mirror working.")
-        return
-
-    r = requests.get(f"{base}/api/streams")
-    data = r.json()
-
-    all_streams = []
-    for group in data.get("streams", []):
-        all_streams.extend(group.get("streams", []))
-
-    for name, func in FILTERS.items():
-        filtered = all_streams if func is None else list(filter(func, all_streams))
-        if not filtered:
-            print(f"[!] {name} listesi boş.")
-            continue
-        print(f"[+] {name} listesi hazırlanıyor: {len(filtered)} yayın")
-        m3u_content = generate_m3u(filtered)
-        with open(f"m3u/{name}.m3u", "w", encoding="utf-8") as f:
-            f.write(m3u_content)
-
-if __name__ == "__main__":
-    main()
+# Konsola yazdır
+print(json.dumps(json_sonuc, indent=4, ensure_ascii=False))
