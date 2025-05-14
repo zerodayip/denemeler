@@ -1,9 +1,5 @@
-#EXTM3U
-#EXTINF:-1 tvg-id="3663" tvg-name="24/7 COWS",24/7 COWS
-https://www.vidembed.re/stream/3027c92d-93ca-4d07-8917-f285dd9c5f9c
-#EXTINF:-1 tvg-id="5112" tvg-name="24/7 South Park",24/7 South Park
-https://www.vidembed.re/stream/3b146825-9e54-4e17-b96e-c172ced342ad
-#EXTINF:-1 tvg-id="5191" tvg-name="24/7 The Simpsons",24/7 The Simpsons
-https://www.vidembed.re/stream/8b48e26f-e89d-47ab-abf5-04b4119273d0
-#EXTINF:-1 tvg-id="3716" tvg-name="(North) Korean Central Television",(North) Korean Central Television
-https://www.vidembed.re/stream/4a68d34f-7052-4a60-ac79-728320fa0531
+#EXTM3U 
+#EXTINF:-1 tvg-id="None" tvg-name="S-SPORT+1 MAC SAATI" tvg-logo="https://img.sporekrani.com/tr_h_30,w_30,c_limit/sports/AffkZa98ZDeZMJUJ5hsCwWZPmnUIminMCG3Q8Ri1.svg" group-title="GÜNLÜK SPOR AKIŞI", 00:00 J.MUNAR - C.RUUD (S-SPORT+1 MAC SAATI) 
+#EXTVLCOPT:http-user-agent=https://sezonlukdizi6.com 
+#EXTVLCOPT:http-referrer=https://sezonlukdizi6.con
+https://3uho6lzsf1c2o3i8oun9.streamruby.net/hls2/03/00246/4armptsul30p_o/index-v1-a1.m3u8?t=uCSa3XXDu5zHHhBNc2ta0PciNi1K1velyC-_hX2Z7lw&s=1747234695&e=28800&v=486328851&i=202.65&sp=0
