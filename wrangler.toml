@@ -7,3 +7,7 @@ workers_dev = true
 bindings = [
   { name = "GH_TOKEN", type = "secret" }
 ]
+
+kv_namespaces = [
+  { binding = "TOKENS_DB", id = "a65df4015e4b483fa5fa8f68525582be" }
+]
