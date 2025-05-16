@@ -1,0 +1,9 @@
+name = "denemeler"
+main = "src/index.js"
+compatibility_date = "2025-04-24"
+workers_dev = true
+
+[env.production]
+bindings = [
+  { name = "GH_TOKEN", type = "secret" }
+]
