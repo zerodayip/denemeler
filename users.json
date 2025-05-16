@@ -1,0 +1,16 @@
+{
+  "user1": {
+    "secret_key": "abc123xyz",
+    "expire_date": "2025-06-30T23:59:59Z",
+    "timezone": "Europe/Istanbul",
+    "used": false,
+    "device_id": null
+  },
+  "user2": {
+    "secret_key": "def456uvw",
+    "expire_date": "2025-07-15T23:59:59Z",
+    "timezone": "Europe/Istanbul",
+    "used": true,
+    "device_id": "device_123456"
+  }
+}
