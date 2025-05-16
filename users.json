@@ -1,16 +1,14 @@
 {
   "user1": {
-    "secret_key": "abc123xyz",
-    "expire_date": "2025-06-30T23:59:59Z",
-    "timezone": "Europe/Istanbul",
-    "used": false,
-    "device_id": null
+    "username": "kullanici1",
+    "password": "sifre1",
+    "expire_date": "2025-06-01T00:00:00Z",
+    "timezone": "Europe/Istanbul"
   },
   "user2": {
-    "secret_key": "def456uvw",
-    "expire_date": "2025-07-15T23:59:59Z",
-    "timezone": "Europe/Istanbul",
-    "used": true,
-    "device_id": "device_123456"
+    "username": "kullanici2",
+    "password": "sifre2",
+    "expire_date": "2025-07-01T00:00:00Z",
+    "timezone": "Europe/Istanbul"
   }
 }
